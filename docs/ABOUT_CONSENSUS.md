@@ -157,5 +157,88 @@ Safety requirement:
                     c2
 Notes: alpha limits concurrency: can't choose entry i+alpha until entry i chosen.
 
+## Multi-Paxos
+
+### 3.1 Persistent state per acceptor
+
+Acceptor keeps track:
+* lastLogIndex: the biggest entry for which this server has accepted a proposal
+* minProposal: the number of the smallest proposal this server will accept for any log entry, or 0 if it has never received a Prepare request. This applies globally to all entries.
+* acceptedProposal[i]: the number of the last proposal the server has accepted for this etnry, or 0 if it never accepted any, or infinity if acceptedValue[i] is known to be chosen
+* acceptedValue[i]: the value in the last proposal the server accepted for this entry, or null if it never accepted any
+
+Define firstUnchosenIndex as the smallest log index i > 0 for which acceptedProposal[i] < infinity
+
+### 3.2 Persistent state per proposer
+* maxRound: the largest round number the proposer has seen
+
+### 3.3 Soft state per proposer
+* nextIndex: the index of the next entry to use for a client request
+* prepared: True means there is no need to issue Prepare requests (a majority of acceptors has responded to Prepare requests with noMoreAccepted true); initially false
+
+### 3.4 Messages
+
+#### 3.4.1 Prepare phase
+
+Request fields:
+* n: a new proposal number
+* index: the log entry that a proposer is requesting information about
+Upon receiving a Prepare request, if request.n >= minProposal, the acceptor sets minProposal to request.n. The response  constitutes a promise to reject Accept requests (for any log entry) with proposals numbered less than request.n
+Response fields:
+* acceptedProposal: the acceptor's acceptedProposal[index]
+* acceptedValue: the acceptor's acceptedValue[index]
+* noMoreAccepted: set to true if this acceptor has never accepted a value for a log entry with index greater than index
 
 
+#### 3.4.2 Accept phase
+
+Request fields:
+* n: the same proposal number used in the most recent Prepare
+* index: identifies a log entry
+* v: a value, either the highest numbered one from a Prepare response, or if none, then one from a client request.
+* firstUnchosenIndex: the sender's firstUnchosenIndex
+Upon receiving an Accept request: if n >= minProposal, then:
+* Set acceptedProposal[index] = n
+* Set acceptedValue[index] = v
+* Set minProposal = n
+For every index < request.firstUnchosenIndex, if acceptedProposal[index] = n, set acceptedProposal[index] to infinity.
+Response fields:
+* n: the acceptor's minProposal
+* firstUnchosenIndex: the acceptor's firstUnchosenIndex
+
+#### 3.4.3 Success phase
+
+Request fields:
+* index: identifies a log entry
+* v: the chosen value for entry index
+Upon receiving a Success request, set acceptedValue[index] to v and acceptedProposal[index] = infinity
+Response fields:
+* firstUnchosenIndex: the acceptor's first Unchosen Index.
+When sender receives the response if reply.firstUnchosenIndex < firstUnchosenIndex then sends Success(index=reply.firstUnchosenIndex, value=acceptedValue[reply.firstUnchosenIndex]).
+
+### 3.5 Proposer Protocol: write(inputValue) -> bool
+
+1. If not leader or not done with leader initialization, return false
+2. If prepared is true:
+..(a) Let index=nextIndex, increment nextIndex
+..(b) Go to step 6
+3. Let index=firstUnchosenIndex and nextIndex=index + 1
+4. Let n be a new proposal number (increment and persist maxRound)
+5. Broadcast Prepare(n, index) request to all acceptors
+6. Upon receiving Prepare responses (reply.acceptedProposal, reply.acceptedValue, reply.noMoreAccepted) from a majority of acceptors:
+..* Let v be set as follows: if the maximum reply.acceptedProposal in the replies isn't 0, use its corresponding reply.acceptedValue. Otherwise, use inputValue.
+..* if all acceptors in the majority responded with reply.noMoreAccepted, set prepared=true
+7. Broadcast Accept(index, n, v) request to all acceptors
+8. Upon receiving an Accept response with (reply.n, reply.firstUnchosenIndex):
+..* If reply.n > n, set maxRound from reply.n. Set prepared = false. Go to step 1.
+..* if reply.firstUnchosenIndex <= lastLogIndex and acceptedProposal[reply.firstUnchosenIndex]=infinity then send Success(index=reply.firstUnchosenIndex, value=acceptedValue[reply.firstUnchosenIndex]).
+9. Upon receiving Accept responses for n from a majority of acceptors:
+..* Set acceptedProposal[i]=infinity and acceptedValue[index]=v
+10. If v == inputValue, return true.
+11. Go to step 2
+
+## Reconfiguration
+
+* Configuration is a list of ids and addresses of servers, stored as special log entries
+* Configuration for choosing entry i determined by latest configuration in log entry i - alpha or below.
+* alpha limits concurrency: can't choose entry i + alpha until entry i is chosen.
