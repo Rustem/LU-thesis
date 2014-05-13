@@ -17,18 +17,18 @@ To provide time safety accross all nodes, Google uses time syncronization protoc
 Google exposes TrueTime API that estimates the accuracy of a node's clock, guaranteeing that a timestamp T belongs to an interval (T.earliest, T.latest).
 
 
-Client Message:
-M = {
+Client Message
+```M = {
     group_ids = set(),
     coordinator_id = #host_id,
     message_tag = uuid(),
     op = WRITE
     value = v
-}
+}```
 
 Proposer:
-PREPARE(n, index, t(prepare, i))
-ACCEPT(index, n, M)
+```PREPARE(n, index, t(prepare, i))```
+```ACCEPT(index, n, M)```
 
 State of each node:
 LatestAssignedTimestamp - the latest timestamp that was assigned
