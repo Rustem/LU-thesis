@@ -1,8 +1,24 @@
+## Introduction
+Most distributed systems relies on consensus: group membership systems, fault-tolerant replicated state machines, data stores. The reason "why" because consensus identical to another important problem - atomic broadcast - delivering messages in a network reliably and in total order to all nodes.
+
+In formal terms, a consensus protocal correct if and only if:
+1. Agreement - all nodes in N decide on the same value
+2. Validity - the value that is decided upon must have been proposed by some node in N
+3. Termination - eventually all nodes decide
+
+###  Two-phase commit
+Two-phase commit is identified by the process of two steps:
+1. Contact every participant, suggest a value and gather their responses
+2. If everyone aggrees upon the value, contact every participant again to let them know. Otherwise, contact every participant to abort the consensus.
+
+The process (node) that proposes values is called coordinator. Any node can act as coordinator.
+![2PC-phase-1][./images/tpc-fault-free-phase-1.png]
+
 ## Paxos (single decree)
 
 In basic Paxos the system must agree on only one value to be chosen.
 
-Goal: Replicated Log
+Main Goal: Replicated Log
 
 Main features of Paxos are:
 * consensus module that ensures proper log replication
