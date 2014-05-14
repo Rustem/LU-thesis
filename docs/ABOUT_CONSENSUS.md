@@ -1,3 +1,7 @@
+Homework
+http://the-paper-trail.org/blog/on-raft-briefly/
+http://the-paper-trail.org/blog/on-some-subtleties-of-paxos/
+
 ## Introduction
 Most distributed systems relies on consensus: group membership systems, fault-tolerant replicated state machines, data stores. The reason "why" because consensus identical to another important problem - atomic broadcast - delivering messages in a network reliably and in total order to all nodes.
 
@@ -13,6 +17,23 @@ Two-phase commit is identified by the process of two steps:
 
 The process (node) that proposes values is called coordinator. Any node can act as coordinator.
 ![2PC-phase-1](./images/tpc-fault-free-phase-1.png "Figure 1: Two-phase commit, fault-free execution, phase one.")
+The important observation is that nodes are reaching consensus on whether or not to accept that value.
+![2PC-phase-1](./images/tpc-fault-free-phase-2.png "Figure 2: Two-phase commit, fault-free execution, phase two.")
+2PC does not trivially commit or abort - it aborts in every case except the one where every node agrees to commit. Termination is guaranteed if every node promises to make progress and eventually return its vote to coordinator, which then eventually communicates them to every node.
+2PC is quite efficient - the number of messages exchanged is 3n for n nodes.
+
+### Crashe and Failure models
+
+Crash in phase one, before any messages are sent out, the coordinator could crash. It simply means that 2PC never gets started. Therefore it considered to be correct. If a participant node crashes before the protocol is initiated then nothing bad happens until the proposal messages fails to reach the crashed node.
+
+Now consider the protocol after some of the proposal messages have been sent, but not all of them. If the coordinator crashes at this point, some nodes have received a proposal and started a 2PC round, and some nodes are unaware that anything is going on. **Outcome**: the nodes that received the proposal are blocked waiting for the outcome of a protocol that might never be finished (in case of locks). It means that protocol is blocked on coordinator and can't make any progress. The **Solution**: another participant should finish the job of the crashed coordinator once a timeout occurs. The new coordinator can contact all the other participants as in a phase one message, and find out which way they voted. This requires all nodes to keep in persistent storage the result of all 2PC executions, until they know that every other node has commited or aborted.
+![2PC-phase-1](./images/tpc-coordinator-fails-phase-1.png "Figure 3: TTwo-phase commit, with coordinator failure, phase one."). The same solution is applied when only one node might know the result of the transaction if the coordinator fails in phase two before all nodes are responded with their abort/commit decision.
+
+However, if another participant node crashes before the recovery node can finish the protocol, the state of the protocol cannot be recovered. The recovery node can’t distinguish between all nodes having already voted to commit and the failed participant having committed (in which case it’s invalid to default to abort).
+
+The worst case scenario is when the coordinator is itself a participant, and grants itself a vote on the outcome of the protocol. Then a crash to the coordinator takes out both it and a participant, guaranteeing that the protocol will remain blocked, and as a result of only one failure.
+
+The co-ordinator will log the result of any succesful protocol in persistent storage, so that when it recovers it can answer inquiries about whether a transaction committed. This allows periodic garbage collection of the logs at the participant nodes to take place: the coordinator can tell nodes that no-one will try to recover a mutually committed transaction and that they can erase its existence from their log.
 
 ## Paxos (single decree)
 
