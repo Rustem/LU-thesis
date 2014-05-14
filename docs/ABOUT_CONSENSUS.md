@@ -12,7 +12,7 @@ Two-phase commit is identified by the process of two steps:
 2. If everyone aggrees upon the value, contact every participant again to let them know. Otherwise, contact every participant to abort the consensus.
 
 The process (node) that proposes values is called coordinator. Any node can act as coordinator.
-![2PC-phase-1][./images/tpc-fault-free-phase-1.png]
+![2PC-phase-1](./images/tpc-fault-free-phase-1.png "Figure 1: Two-phase commit, fault-free execution, phase one.")
 
 ## Paxos (single decree)
 
